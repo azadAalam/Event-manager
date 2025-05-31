@@ -142,13 +142,29 @@ const EventDetail = () => {
     );
   }
 
-  const isRegistered = event.attendees?.some(
+  const isRegistered = token ? event.attendees?.some(
     attendee => attendee._id === JSON.parse(atob(token.split('.')[1])).id
-  );
+  ) : false;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="bg-white shadow-lg rounded-lg overflow-hidden mt-16">
+        {!token && (
+          <div className="bg-blue-50 p-4 border-b border-blue-100">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700">
+                  Please <button onClick={() => navigate('/login')} className="font-medium underline hover:text-blue-600">sign in</button> to register for this event.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
             <h1 className="text-3xl font-bold text-gray-900">{event.title}</h1>
@@ -239,6 +255,17 @@ const EventDetail = () => {
               <p className="text-gray-600">No attendees yet. Be the first to register!</p>
             )}
           </div>
+          
+          {!token && (
+            <div className="mt-6">
+              <button
+                onClick={() => navigate('/login')}
+                className="w-full md:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Sign in to Register
+              </button>
+            </div>
+          )}
           
           {token && !isRegistered && (
             <div className="mt-6">

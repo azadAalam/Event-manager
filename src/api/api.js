@@ -18,26 +18,33 @@ api.interceptors.request.use(
   }
 );
 
+// Add a response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth endpoints
 export const auth = {
-  signup: (data) => api.post('/auth/signup', data),
-  login: (data) => api.post('/auth/login', data),
+  login: (credentials) => api.post('/auth/login', credentials),
+  signup: (userData) => api.post('/auth/signup', userData),
+  logout: () => api.post('/auth/logout'),
 };
 
 // Events endpoints
 export const events = {
   getAll: () => api.get('/events'),
   getById: (id) => api.get(`/events/${id}`),
-  create: (data) => api.post('/events', data, {
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }),
-  uploadImage: (formData) => api.post('/events/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  }),
+  create: (data) => {
+    console.log('API - Data being sent:', data);
+    return api.post('/events', data);
+  },
   update: (id, data) => api.put(`/events/${id}`, data),
   delete: (id) => api.delete(`/events/${id}`),
   register: (id, accessCode) => api.post(`/events/${id}/register`, accessCode ? { accessCode } : {}),

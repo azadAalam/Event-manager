@@ -1,6 +1,6 @@
 import React from "react"
 import { useState } from "react"
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Mail, Eye, EyeOff, Facebook } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -10,6 +10,7 @@ const API_BASE_URL = 'https://event-manager-backend-mu.vercel.app/api' // Update
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     email: "",
@@ -18,6 +19,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [message, setMessage] = useState(location.state?.message || "")
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,8 +40,12 @@ export default function LoginPage() {
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
 
-      // Redirect to home page
-      navigate('/');
+      // Redirect to the previous page or home
+      if (location.state?.from) {
+        navigate(location.state.from);
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(
         err.response?.data?.message || 
@@ -52,7 +58,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden flex">
+      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl mt-16 overflow-hidden flex">
         {/* Left Side - Form */}
         <div className="w-full lg:w-1/2 p-8 lg:p-12">
           {/* Header */}
@@ -70,6 +76,13 @@ export default function LoginPage() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Sign In</h1>
             <p className="text-gray-500">Welcome back to Easymail</p>
           </div>
+
+          {/* Message */}
+          {message && (
+            <div className="mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg">
+              {message}
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

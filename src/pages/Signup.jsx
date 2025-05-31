@@ -98,7 +98,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 flex items-center justify-center p-4">
-      <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden flex">
+      <div className="w-full max-w-6xl bg-white rounded-3xl mt-16 shadow-2xl overflow-hidden flex">
         {/* Left Side - Form */}
         <div className="w-full lg:w-1/2 p-8 lg:p-12">
           {/* Header */}

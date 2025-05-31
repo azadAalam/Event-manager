@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { events } from '../api/api';
 import DatePicker from 'react-datepicker';
@@ -44,6 +44,19 @@ const CreateEvent = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Check authentication on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login', { 
+        state: { 
+          from: '/create',
+          message: 'Please sign in to create an event' 
+        } 
+      });
+    }
+  }, [navigate]);
+
   const { getRootProps, getInputProps } = useDropzone({
     accept: {
       'image/*': ['.jpeg', '.jpg', '.png']
@@ -65,6 +78,7 @@ const CreateEvent = () => {
       ...prev,
       [name]: value,
     }));
+    console.log(formData);
   };
 
   const handleDateChange = (date) => {
@@ -76,79 +90,149 @@ const CreateEvent = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    // Validate form
-    const validationErrors = validateForm(formData);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setLoading(false);
+    
+    // Prevent double submission
+    if (loading) {
       return;
     }
 
-    // Prepare the event data according to API specification
-    const eventData = {
-      title: formData.title,
-      description: formData.description,
-      date: formData.date.toISOString(),
-      venue: formData.venue,
-      eventType: formData.eventType,
-      maxParticipants: parseInt(formData.maxParticipants, 10)
-    };
-
-    // Add access code only for private events
-    if (formData.eventType === 'private' && formData.accessCode) {
-      eventData.accessCode = formData.accessCode;
-    }
+    setError('');
+    setLoading(true);
 
     try {
-      // If there's an image, we need to handle it separately
-      if (formData.image) {
-        const imageFormData = new FormData();
-        imageFormData.append('image', formData.image);
-        
-        // First upload the image
-        try {
-          const imageResponse = await events.uploadImage(imageFormData);
-          eventData.image = imageResponse.data.url; // Assuming the API returns the image URL
-        } catch (imageError) {
-          console.error('Error uploading image:', imageError);
-          // Continue with event creation even if image upload fails
-        }
+      // Validate all fields before submission
+      const allFields = {
+        ...getStepFields(1),
+        ...getStepFields(2),
+        ...getStepFields(3)
+      };
+      
+      const validationErrors = validateStepFields(allFields);
+      if (Object.keys(validationErrors).length > 0) {
+        console.log('Validation errors:', validationErrors);
+        setErrors(validationErrors);
+        setLoading(false);
+        return;
       }
 
-      // Create the event with JSON data
+      // Create event data object with only the required fields
+      const eventData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        date: formData.date.toISOString(),
+        venue: formData.venue.trim(),
+        eventType: formData.eventType,
+        maxParticipants: parseInt(formData.maxParticipants)
+      };
+
+      // Add access code only for private events
+      if (formData.eventType === 'private' && formData.accessCode) {
+        eventData.accessCode = formData.accessCode.trim();
+      }
+
+      console.log('Event data being sent:', eventData);
+
+      // Send the data
       const response = await events.create(eventData);
+      console.log('Event created successfully:', response.data);
+      
+      // Redirect to the event detail page
       navigate(`/events/${response.data._id}`);
     } catch (err) {
       console.error('Error creating event:', err);
-      setError(err.response?.data?.message || 'Failed to create event');
+      console.error('Error response:', err.response?.data);
+      const errorMessage = err.response?.data?.message || err.response?.data || 'Failed to create event. Please try again.';
+      setError(Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage);
+    } finally {
       setLoading(false);
     }
   };
 
-  // Validation function
-  const validateForm = (values) => {
-    const newErrors = {};
+  const handleNext = (e) => {
+    e.preventDefault(); // Prevent form submission
+    const currentStepFields = getStepFields(currentStep);
+    const stepValidationErrors = validateStepFields(currentStepFields);
+    
+    if (Object.keys(stepValidationErrors).length > 0) {
+      setErrors(stepValidationErrors);
+      return;
+    }
+    
+    setCurrentStep(prev => prev + 1);
+    setErrors({});
+  };
 
-    if (values.description.length < 10 || values.description.length > 1000) {
-      newErrors.description = 'Description must be between 10 and 1000 characters';
+  // Helper function to get fields for current step
+  const getStepFields = (step) => {
+    switch (step) {
+      case 1:
+        return {
+          title: formData.title,
+          description: formData.description,
+          eventType: formData.eventType,
+          accessCode: formData.eventType === 'private' ? formData.accessCode : undefined,
+          category: formData.category
+        };
+      case 2:
+        return {
+          date: formData.date,
+          venue: formData.venue,
+          location: formData.location
+        };
+      case 3:
+        return {
+          maxParticipants: formData.maxParticipants,
+          price: formData.price
+        };
+      default:
+        return {};
+    }
+  };
+
+  // Helper function to validate fields for current step
+  const validateStepFields = (fields) => {
+    const stepErrors = {};
+    
+    if (fields.title !== undefined && (!fields.title || fields.title.trim().length < 3)) {
+      stepErrors.title = 'Title must be at least 3 characters long';
     }
 
-    if (values.venue.length < 3 || values.venue.length > 200) {
-      newErrors.venue = 'Venue must be between 3 and 200 characters';
+    if (fields.description !== undefined && (!fields.description || fields.description.length < 10 || fields.description.length > 1000)) {
+      stepErrors.description = 'Description must be between 10 and 1000 characters';
     }
 
-    if (values.eventType === 'private' && (!values.accessCode || values.accessCode.length < 6 || values.accessCode.length > 20)) {
-      newErrors.accessCode = 'Private events require an access code (6-20 characters)';
+    if (fields.venue !== undefined && (!fields.venue || fields.venue.length < 3 || fields.venue.length > 200)) {
+      stepErrors.venue = 'Venue must be between 3 and 200 characters';
     }
 
-    if (!values.maxParticipants || values.maxParticipants < 1 || values.maxParticipants > 1000) {
-      newErrors.maxParticipants = 'Maximum participants must be between 1 and 1000';
+    if (fields.date !== undefined) {
+      if (!fields.date) {
+        stepErrors.date = 'Event date is required';
+      } else if (new Date(fields.date) < new Date()) {
+        stepErrors.date = 'Event date cannot be in the past';
+      }
     }
 
-    return newErrors;
+    if (fields.eventType === 'private' && fields.accessCode !== undefined && (!fields.accessCode || fields.accessCode.length < 6 || fields.accessCode.length > 20)) {
+      stepErrors.accessCode = 'Private events require an access code (6-20 characters)';
+    }
+
+    if (fields.maxParticipants !== undefined) {
+      const maxPart = parseInt(fields.maxParticipants);
+      if (!maxPart || isNaN(maxPart) || maxPart < 1 || maxPart > 1000) {
+        stepErrors.maxParticipants = 'Maximum participants must be between 1 and 1000';
+      }
+    }
+
+    if (fields.category !== undefined && !fields.category) {
+      stepErrors.category = 'Please select an event category';
+    }
+
+    if (fields.location !== undefined && !fields.location) {
+      stepErrors.location = 'Location is required';
+    }
+
+    return stepErrors;
   };
 
   const steps = [
@@ -165,7 +249,7 @@ const CreateEvent = () => {
               name="title"
               id="title"
               required
-              className="mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full h-10 p-1 rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               value={formData.title}
               onChange={handleChange}
               placeholder="Enter event title"
@@ -181,7 +265,7 @@ const CreateEvent = () => {
               name="description"
               rows={4}
               required
-              className={`mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+              className={`mt-1 block p-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
                 errors.description ? 'border-red-300' : ''
               }`}
               value={formData.description}
@@ -209,7 +293,7 @@ const CreateEvent = () => {
                   value="public"
                   checked={formData.eventType === 'public'}
                   onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  className="h-4 w-4  p-1 text-blue-600 border-gray-300 focus:ring-blue-500"
                 />
                 <label htmlFor="public" className="ml-3 block text-sm font-medium text-gray-700">
                   Public Event
@@ -243,7 +327,7 @@ const CreateEvent = () => {
                   name="accessCode"
                   id="accessCode"
                   required
-                  className={`mt-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                  className={`mt-1 h-10 p-1 block w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
                     errors.accessCode ? 'border-red-300' : ''
                   }`}
                   value={formData.accessCode}
@@ -316,7 +400,7 @@ const CreateEvent = () => {
                 name="venue"
                 id="venue"
                 required
-                className={`block w-full rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                className={`block w-full h-10 p-1 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.venue ? 'border-red-300' : ''
                 }`}
                 value={formData.venue}
@@ -345,7 +429,7 @@ const CreateEvent = () => {
                 name="location"
                 id="location"
                 required
-                className="block w-full pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full h-10 p-1 pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.location}
                 onChange={handleChange}
                 placeholder="Enter detailed location/address"
@@ -374,7 +458,7 @@ const CreateEvent = () => {
                 min="1"
                 max="1000"
                 required
-                className={`block w-full pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                className={`block w-full  h-10 p-1 pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.maxParticipants ? 'border-red-300' : ''
                 }`}
                 value={formData.maxParticipants}
@@ -401,7 +485,7 @@ const CreateEvent = () => {
                 id="price"
                 min="0"
                 step="0.01"
-                className="block w-full pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                className="block w-full  h-10 p-1 pl-10 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                 value={formData.price}
                 onChange={handleChange}
                 placeholder="0.00"
@@ -481,7 +565,7 @@ const CreateEvent = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={currentStep === steps.length ? handleSubmit : (e) => e.preventDefault()}>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={currentStep}
@@ -512,7 +596,7 @@ const CreateEvent = () => {
                 {currentStep < steps.length ? (
                   <button
                     type="button"
-                    onClick={() => setCurrentStep(prev => prev + 1)}
+                    onClick={handleNext}
                     className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
                   >
                     Next
@@ -522,7 +606,7 @@ const CreateEvent = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
+                    className="inline-flex items-center px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
