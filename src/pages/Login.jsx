@@ -6,7 +6,7 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:5000/api' // Update with your actual API URL
+const API_BASE_URL = 'https://event-manager-backend-mu.vercel.app/api' // Update with your actual API URL
 
 export default function LoginPage() {
   const navigate = useNavigate();

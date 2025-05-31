@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: 'https://event-manager-backend-mu.vercel.app/api',
 });
 
 // Add a request interceptor to add the auth token
